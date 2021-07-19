@@ -1,5 +1,5 @@
 # Yew Chat app
 
-Wrote the simplest to-do list SPA using yew.
+Wrote the simplest chat SPA using yew.
 
 in progress..
