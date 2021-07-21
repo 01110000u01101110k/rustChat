@@ -1,5 +1,5 @@
-# Yew Chat app
+# frontend using Yew
 
-Wrote the simplest to-do list SPA using yew.
+Wrote frontend for chat SPA using yew.
 
 in progress..
