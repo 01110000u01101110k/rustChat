@@ -60,6 +60,7 @@ impl Component for Model {
                     date: time
                 };
                 self.messages.push(message);
+                self.value = String::from("");
                 true
             }
             Msg::UpdateMsgValue(value) => {
@@ -83,8 +84,8 @@ impl Component for Model {
                     <nav>
                         <h2>{"Simple chat"}</h2>
                         <div class="connect_room_wrap">
-                            <p>{"connect to room"}</p>
                             <input type="text" class="text_input" placeholder="input room id" />
+                            <button class="squareBtn" onclick=self.link.callback(|_| Msg::PostMsg)>{ "connect to room" }</button>
                         </div>
                     </nav>
                 </header>
@@ -93,24 +94,35 @@ impl Component for Model {
                         <div class="text_section_wrap">
                             <div class="text_section_head">
                                 <h2>{"Messages:"}</h2>
+                                <hr class="margin-vertical-20"/>
                             </div>
                             <div class="text_section_content">
-                                { for self.messages.iter().map(|data| {
+                                {if self.messages.len() > 0 {
                                     html! {
-                                        <div class="message">
-                                            <div class="padding-20">
-                                                <p>{data.text.to_string()}</p>
-                                            </div>
-                                            <div class="padding-20">
-                                                <p>{data.date.to_string()}</p>
-                                            </div>
+                                        {for self.messages.iter().map(|data| {
+                                            html! {
+                                                <div class="message">
+                                                    <div class="padding-20">
+                                                        <p>{&data.text}</p>
+                                                    </div>
+                                                    <div class="padding-20 messageDate">
+                                                        <p>{&data.date}</p>
+                                                    </div>
+                                                </div>
+                                            }
+                                        })}
+                                    }
+                                } else {
+                                    html! {
+                                        <div class="padding-20">
+                                            <p>{"Currently there are no messages"}</p>
                                         </div>
                                     }
-                                }) }
+                                }}
                             </div>
                         </div>
                         <div class="form_section">
-                            <textarea class="message_textarea" oninput=self.link.callback(|e: InputData| Msg::UpdateMsgValue(e.value)) placeholder="message">{""}</textarea>
+                            <textarea class="message_textarea" oninput=self.link.callback(|e: InputData| Msg::UpdateMsgValue(e.value)) placeholder="message" value={self.value.clone()}>{""}</textarea>
                             <button class="squareBtn" onclick=self.link.callback(|_| Msg::PostMsg)>{ "send" }</button>
                         </div>
                     </div>
