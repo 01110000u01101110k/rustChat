@@ -1,8 +1,16 @@
 use yew::prelude::*;
 use yew::{InputData};
 use js_sys::{Date};
+use yew::services::websocket::{WebSocketService, WebSocketStatus, WebSocketTask};
+use yew::format::Json;
+use anyhow::Error;
+use yew::services::ConsoleService;
 
 enum Msg {
+    WsConnect,
+    Received(Result<String, Error>),
+    Open,
+    Disconnect,
     PostMsg,
     UpdateMsgValue(String)
 }
@@ -15,6 +23,7 @@ struct Message {
 struct Model {
     // `ComponentLink` is like a reference to a component.
     // It can be used to send messages to the component
+    ws: Option<WebSocketTask>,
     link: ComponentLink<Self>,
     value: String,
     messages: Vec<Message>
@@ -26,6 +35,7 @@ impl Component for Model {
 
     fn create(_props: Self::Properties, link: ComponentLink<Self>) -> Self {
         Self {
+            ws: None,
             link,
             value: String::from(""),
             messages: vec![]
@@ -33,36 +43,91 @@ impl Component for Model {
     }
 
     fn update(&mut self, msg: Self::Message) -> ShouldRender {
-        match msg {
-            Msg::PostMsg => {
-                /*let dt = Utc::now();
-                let timestamp: i64 = dt.timestamp();*/
-                let get_hours = Date::get_hours(&Date::new_0());
-                let get_minutes = Date::get_minutes(&Date::new_0());
-                let get_date = Date::get_date(&Date::new_0());
-                let get_month = Date::get_month(&Date::new_0());
-                let get_full_year = Date::get_full_year(&Date::new_0());
-
-                let time = String::from(
-                    get_hours.to_string() +
-                    ":" + 
-                    &get_minutes.to_string() +
-                    " / " + 
-                    &get_date.to_string() + 
-                    "." + 
-                    &get_month.to_string() + 
-                    "." +
-                    &get_full_year.to_string()
-                ); 
-                // Стандартные методы для отображения времени: std::time::SystemTime и библиотека chrono не работают в данном случае, на данный момент времени. Решние которое работает на данный момент - библиотека js_sys. Также использую String::from для привидения типа JsString в String.
-                let message = Message {
-                    text: self.value.clone(),
+        let mut post_message = |value: &String, is_from_server: bool| {
+            let get_hours = Date::get_hours(&Date::new_0());
+            let get_minutes = Date::get_minutes(&Date::new_0());
+            let get_date = Date::get_date(&Date::new_0());
+            let get_month = Date::get_month(&Date::new_0());
+            let get_full_year = Date::get_full_year(&Date::new_0());
+        
+            let time = String::from(
+                get_hours.to_string() +
+                ":" + 
+                &get_minutes.to_string() +
+                " / " + 
+                &get_date.to_string() + 
+                "." + 
+                &get_month.to_string() + 
+                "." +
+                &get_full_year.to_string()
+            ); 
+            // Стандартные методы для отображения времени: std::time::SystemTime и библиотека chrono не работают в данном случае, на данный момент времени. Решние которое работает на данный момент - библиотека js_sys. Также использую String::from для привидения типа JsString в String.
+            let message;
+            if is_from_server {
+                message = Message {
+                    text: value.clone(),
                     date: time
                 };
-                self.messages.push(message);
-                self.value = String::from("");
+            } else {
+                message = Message {
+                    text: "your: ".to_string() + &self.value,
+                    date: time
+                };
+            }
+            
+            self.messages.push(message);
+        };
+        
+        match msg {
+            Msg::WsConnect => {
+                let callback = self.link.callback(|Json(data)| Msg::Received(data));
+                let callback_notification = self.link.callback(|input| {
+                    match input {
+                        WebSocketStatus::Opened => {
+                            Msg::Open
+                        }
+                        WebSocketStatus::Closed | WebSocketStatus::Error => {
+                            Msg::Disconnect
+                        }
+                    }
+                });
+                if self.ws.is_none() {
+                    self.ws = Some(WebSocketService::connect_text("ws://127.0.0.1:8081/ws/", callback, callback_notification).unwrap());
+                }
                 true
             }
+            Msg::Received(Ok(string)) => {
+                post_message(&string, true);
+                true
+            }
+            Msg::Received(Err(string)) => {
+                /*post_message(&string.to_string(), true);*/
+                true
+            }
+            Msg::Open => {
+                post_message(&"you joined the chat room".to_string(), true);
+                true
+            }
+            Msg::Disconnect => {
+                post_message(&"disconnect".to_string(), true);
+                self.ws = None;
+                true
+            }
+            Msg::PostMsg => {
+                post_message(&"".to_string(), false);
+                match self.ws {
+                    Some(ref mut task) => {
+                        task.send(Json(&self.value.clone()));
+                        self.value = String::from("");
+                        true
+                    }
+                    None => {
+                        self.value = String::from("");
+                        false
+                    }
+                }
+                
+            }            
             Msg::UpdateMsgValue(value) => {
                 self.value = value;
                 true
@@ -84,8 +149,15 @@ impl Component for Model {
                     <nav>
                         <h2>{"Simple chat"}</h2>
                         <div class="connect_room_wrap">
-                            <input type="text" class="text_input" placeholder="input room id" />
-                            <button class="squareBtn" onclick=self.link.callback(|_| Msg::PostMsg)>{ "connect to room" }</button>
+                            /*<input type="text" class="text_input" placeholder="input room id" />*/
+                            <button class="squareBtn" onclick=self.link.callback(|_| Msg::WsConnect)>{
+                                if self.ws.is_none() {
+                                    "connect to room"
+                                } else {
+                                    "disconnect"
+                                }
+                                }</button>
+                            <p>{ "Connected: "}{ !self.ws.is_none() } </p>
                         </div>
                     </nav>
                 </header>
